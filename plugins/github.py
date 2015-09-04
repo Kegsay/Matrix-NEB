@@ -245,7 +245,7 @@ class GithubPlugin(Plugin):
         projects = self.store.get("known_projects")
 
         for sha in groups:
-            if project in projects:
+            for project in projects:
                 try:
                     commit_info = self._get_commit(project, sha)
                     if commit_info:
