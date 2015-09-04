@@ -260,6 +260,7 @@ class GithubPlugin(Plugin):
     def _get_commit(self, project, sha):
         resp = requests.get("https://api.github.com/repos/%s/commits/%s" % (
             project, sha,
+            ), headers={"Accept": "application/vnd.github.v3+json"}
         )
         if not resp.ok:
             return None
