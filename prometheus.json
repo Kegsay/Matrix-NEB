@@ -1,3 +1,4 @@
 {
-    "message_template": "[ALERT] {{labels.alertname}} : {{summary}}\n{{payload.generatorURL}}\n{{description}}\nValue: {{payload.value}}\n{{payload.alertingRule}}\nActive since: {{payload.activeSince}}"
+    "v1_message_template": "[ALERT] {{labels.alertname}} : {{summary}}\n{{payload.generatorURL}}\n{{description}}\nValue: {{payload.value}}\n{{payload.alertingRule}}\nActive since: {{payload.activeSince}}",
+    "v2_message_template": "[ALERT] {{labels.alertname}} : {{annotations.summary}}\n{{labels.job}} on {{labels.instance}}\n{{status}}\n{{annotations.description}}\n{{generatorURL}}\nStarted: {{startsAt}} ; Ended: {{endsAt}}"
 }

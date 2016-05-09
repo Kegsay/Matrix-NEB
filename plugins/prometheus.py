@@ -48,12 +48,16 @@ class PrometheusPlugin(Plugin):
     def on_receive_webhook(self, url, data, ip, headers):
         json_data = json.loads(data)
         log.info("recv %s", json_data)
-        template = Template(self.store.get("message_template"))
-        for alert in json_data.get("alert", []):
-            for room_id in self.rooms.get_room_ids():
-                log.debug("queued message for room " + room_id + " at " + str(self.queue_counter) + ": %s", alert)
-                queue.put((self.queue_counter, room_id, template.render(alert)))
-                self.queue_counter += 1
+        def process_alerts(alerts, template):
+            for alert in alerts:
+                for room_id in self.rooms.get_room_ids():
+                    log.debug("queued message for room " + room_id + " at " + str(self.queue_counter) + ": %s", alert)
+                    queue.put((self.queue_counter, room_id, template.render(alert)))
+                    self.queue_counter += 1
+        # try version 1 format
+        process_alerts(json_data.get("alert", []), Template(self.store.get("v1_message_template"))
+        # try version 2+ format
+        process_alerts(json_data.get("alerts", []), Template(self.store.get("v2_message_template"))
 
 
 class MessageConsumer(Thread):
