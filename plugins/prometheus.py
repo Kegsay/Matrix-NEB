@@ -15,7 +15,13 @@ queue = PriorityQueue()
 
 
 class PrometheusPlugin(Plugin):
-    """Plugin for interacting with Prometheus.
+    """ Plugin for receiving Prometheus alerts.
+    prometheus show projects : Display which projects this bot recognises.
+    prometheus show track|tracking : Display which projects this bot is tracking.
+    prometheus track project1 project2 ... : Track Prometheus notifications for the named projects.
+    prometheus stop track|tracking : Stop tracking Prometheus notifications.
+    prometheus add projectName : Start tracking projectName.
+    prometheus remove projectName : Stop tracking projectName.
     """
     name = "prometheus"
 
