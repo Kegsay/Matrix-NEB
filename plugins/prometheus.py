@@ -21,6 +21,8 @@ class PrometheusPlugin(Plugin):
 
     #Webhooks:
         #    /neb/prometheus
+
+    TRACKING = ["track", "tracking"]
     TYPE_TRACK = "org.matrix.neb.plugin.prometheus.projects.tracking"
 
 
@@ -34,6 +36,101 @@ class PrometheusPlugin(Plugin):
         self.consumer = MessageConsumer(self.matrix)
         self.consumer.daemon = True
         self.consumer.start()
+
+
+    def cmd_show(self, event, action):
+        """Show information on projects or projects being tracked.
+        Show which projects are being tracked. 'prometheus show tracking'
+        Show which proejcts are recognised so they could be tracked. 'prometheus show projects'
+        """
+        if action in self.TRACKING:
+            return self._get_tracking(event["room_id"])
+        elif action == "projects":
+            projects = self.store.get("known_projects")
+            return "Available projects: %s" % json.dumps(projects)
+        else:
+            return "Invalid arg '%s'.\n %s" % (action, self.cmd_show.__doc__)
+
+    @admin_only
+    def cmd_track(self, event, *args):
+        """Track projects. 'prometheus track Foo "bar with spaces"'"""
+        if len(args) == 0:
+            return self._get_tracking(event["room_id"])
+
+        for project in args:
+            if not project in self.store.get("known_projects"):
+                return "Unknown project name: %s." % project
+
+        self._send_track_event(event["room_id"], args)
+
+        return "Prometheus notifications for projects %s will be displayed when they fail." % (args)
+
+    @admin_only
+    def cmd_add(self, event, project):
+        """Add a project for tracking. 'prometheus add projectName'"""
+        if project not in self.store.get("known_projects"):
+            return "Unknown project name: %s." % project
+
+        try:
+            room_projects = self.rooms.get_content(
+                event["room_id"],
+                PrometheusPlugin.TYPE_TRACK)["projects"]
+        except KeyError:
+            room_projects = []
+
+        if project in room_projects:
+            return "%s is already being tracked." % project
+
+        room_projects.append(project)
+        self._send_track_event(event["room_id"], room_projects)
+
+        return "Added %s. Prometheus notifications for projects %s will be displayed when they fail." % (project, room_projects)
+
+    @admin_only
+    def cmd_remove(self, event, project):
+        """Remove a project from tracking. 'prometheus remove projectName'"""
+        try:
+            room_projects = self.rooms.get_content(
+                event["room_id"],
+                PrometheusPlugin.TYPE_TRACK)["projects"]
+        except KeyError:
+            room_projects = []
+
+        if project not in room_projects:
+            return "Cannot remove %s : It isn't being tracked." % project
+
+        room_projects.remove(project)
+        self._send_track_event(event["room_id"], room_projects)
+
+        return "Removed %s. Prometheus notifications for projects %s will be displayed when they fail." % (project, room_projects)
+
+    @admin_only
+    def cmd_stop(self, event, action):
+        """Stop tracking projects. 'prometheus stop tracking'"""
+        if action in self.TRACKING:
+            self._send_track_event(event["room_id"], [])
+            return "Stopped tracking projects."
+        else:
+            return "Invalid arg '%s'.\n %s" % (action, self.cmd_stop.__doc__)
+
+    def _get_tracking(self, room_id):
+        try:
+            return ("Currently tracking %s" %
+                json.dumps(self.rooms.get_content(
+                    room_id, PrometheusPlugin.TYPE_TRACK)["projects"]
+                )
+            )
+        except KeyError:
+            return "Not tracking any projects currently."
+
+    def _send_track_event(self, room_id, project_names):
+        self.matrix.send_state_event(
+            room_id,
+            self.TYPE_TRACK,
+            {
+                "projects": project_names
+            }
+        )
 
     def on_event(self, event, event_type):
         self.rooms.update(event)
@@ -51,13 +148,18 @@ class PrometheusPlugin(Plugin):
         def process_alerts(alerts, template):
             for alert in alerts:
                 for room_id in self.rooms.get_room_ids():
-                    log.debug("queued message for room " + room_id + " at " + str(self.queue_counter) + ": %s", alert)
-                    queue.put((self.queue_counter, room_id, template.render(alert)))
-                    self.queue_counter += 1
+                    try:
+                        if (len(self.rooms.get_content(
+                                room_id, PrometheusPlugin.TYPE_TRACK)["projects"])):
+                            log.debug("queued message for room " + room_id + " at " + str(self.queue_counter) + ": %s", alert)
+                            queue.put((self.queue_counter, room_id, template.render(alert)))
+                            self.queue_counter += 1
+                    except KeyError:
+                        pass
         # try version 1 format
-        process_alerts(json_data.get("alert", []), Template(self.store.get("v1_message_template"))
+        process_alerts(json_data.get("alert", []), Template(self.store.get("v1_message_template")))
         # try version 2+ format
-        process_alerts(json_data.get("alerts", []), Template(self.store.get("v2_message_template"))
+        process_alerts(json_data.get("alerts", []), Template(self.store.get("v2_message_template")))
 
 
 class MessageConsumer(Thread):
