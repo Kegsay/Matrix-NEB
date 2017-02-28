@@ -4,14 +4,8 @@ import argparse
 from matrix_client.api import MatrixHttpApi
 from neb.engine import Engine
 from neb.matrix import MatrixConfig
-from plugins.b64 import Base64Plugin
-from plugins.guess_number import GuessNumberPlugin
-from plugins.jenkins import JenkinsPlugin
-from plugins.jira import JiraPlugin
-from plugins.url import UrlPlugin
-from plugins.time_utils import TimePlugin
-from plugins.github import GithubPlugin
-from plugins.prometheus import PrometheusPlugin
+from neb.plugins import PluginInterface, Plugin
+from plugins import *  # Appears unused, but is used to dynamically load the plugins
 
 import logging
 import logging.handlers
@@ -64,22 +58,20 @@ def configure_logging(logfile):
         handler.setFormatter(formatter)
         logging.getLogger('').addHandler(handler)
 
+def get_subclasses(cls):
+    subclasses = []
+    for subclass in cls.__subclasses__():
+        subclasses.append(subclass)
+        subclasses.extend(get_subclasses(subclass))
+    return subclasses
 
 def main(config):
     # setup api/endpoint
     matrix = MatrixHttpApi(config.base_url, config.token)
 
     log.debug("Setting up plugins...")
-    plugins = [
-        TimePlugin,
-        Base64Plugin,
-        GuessNumberPlugin,
-        JiraPlugin,
-        UrlPlugin,
-        GithubPlugin,
-        JenkinsPlugin,
-        PrometheusPlugin,
-    ]
+    plugins = get_subclasses(PluginInterface)
+    plugins = [p for p in plugins if p != Plugin]  # filter out the Plugin abstract class
 
     # setup engine
     engine = Engine(matrix, config)
